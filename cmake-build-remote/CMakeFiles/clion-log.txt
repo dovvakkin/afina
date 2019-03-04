@@ -1,0 +1,12 @@
+/usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/cc -G "CodeBlocks - Unix Makefiles" /tmp/tmp.YIDWVUSsKZ
+-- Could NOT find libdw (missing: LIBDW_LIBRARY LIBDW_INCLUDE_DIR) 
+-- Could NOT find libbfd (missing: LIBBFD_LIBRARY LIBBFD_INCLUDE_DIR) 
+-- BACKWARD_HAS_UNWIND=1
+-- BACKWARD_HAS_BACKTRACE=0
+-- BACKWARD_HAS_BACKTRACE_SYMBOL=1
+-- BACKWARD_HAS_DW=0
+-- BACKWARD_HAS_BFD=0
+-- Could NOT find Backward (missing: BACKWARD_LIBRARIES) 
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /tmp/tmp.YIDWVUSsKZ/cmake-build-remote
