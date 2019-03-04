@@ -60,8 +60,13 @@ namespace Afina {
             // element that wasn't used for longest time.
             //
             // List owns all nodes
+<<<<<<< HEAD
             std::unique_ptr<lru_node> _lru_head = nullptr;
             lru_node *_lru_tail = nullptr;
+=======
+            std::unique_ptr<lru_node> _lru_head;
+            lru_node *_lru_tail;
+>>>>>>> 4f4fc09de0ceb3b32c5c7fde998d1932f472ca6c
 
             // Index of nodes from list above, allows fast random access to elements by lru_node#key
             std::map<std::reference_wrapper<const std::string>,
