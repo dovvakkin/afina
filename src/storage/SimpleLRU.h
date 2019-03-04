@@ -22,7 +22,14 @@ namespace Afina {
 
             ~SimpleLRU() {
                 _lru_index.clear();
-                _lru_head.reset(); // TODO: Here is stack overflow
+                // _lru_head.reset(); // TODO: Here is stack overflow
+                while (_lru_head != nullptr && _lru_head->next != nullptr) {
+                    std::unique_ptr<lru_node> tmp = nullptr;
+                    tmp.swap(_lru_head->next);
+                    _lru_head.swap(tmp);
+                    tmp.reset();
+                }
+                _lru_head.reset();
             }
 
             // Implements Afina::Storage interface
@@ -60,13 +67,10 @@ namespace Afina {
             // element that wasn't used for longest time.
             //
             // List owns all nodes
-<<<<<<< HEAD
+
             std::unique_ptr<lru_node> _lru_head = nullptr;
             lru_node *_lru_tail = nullptr;
-=======
-            std::unique_ptr<lru_node> _lru_head;
-            lru_node *_lru_tail;
->>>>>>> 4f4fc09de0ceb3b32c5c7fde998d1932f472ca6c
+
 
             // Index of nodes from list above, allows fast random access to elements by lru_node#key
             std::map<std::reference_wrapper<const std::string>,

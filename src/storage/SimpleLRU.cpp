@@ -30,8 +30,6 @@ void SimpleLRU::_move_to_tail(lru_node &exist) {
 
     {
         std::unique_ptr<lru_node> buf = nullptr;
-        //todo
-        //ЖОПА
         exist.prev->next.swap(buf);
         exist.next->prev = exist.prev;
         exist.prev->next.swap(exist.next);
@@ -115,6 +113,8 @@ bool SimpleLRU::Set(const std::string &key, const std::string &value) {
 }
 
 // See MapBasedGlobalLockImpl.h
+//todo
+//first-last
 bool SimpleLRU::Delete(const std::string &key) {
     auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
     if (fnd == _lru_index.end()) {
