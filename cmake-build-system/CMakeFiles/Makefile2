@@ -1498,9 +1498,9 @@ src/preinstall: src/storage/preinstall
 # Target rules for target src/CMakeFiles/afina.dir
 
 # All Build rule for target.
-src/CMakeFiles/afina.dir/all: third-party/backward-cpp/CMakeFiles/backward_object.dir/all
 src/CMakeFiles/afina.dir/all: src/concurrency/CMakeFiles/Concurrency.dir/all
 src/CMakeFiles/afina.dir/all: src/logging/CMakeFiles/Logging.dir/all
+src/CMakeFiles/afina.dir/all: third-party/backward-cpp/CMakeFiles/backward_object.dir/all
 src/CMakeFiles/afina.dir/all: src/execute/CMakeFiles/Execute.dir/all
 src/CMakeFiles/afina.dir/all: src/protocol/CMakeFiles/Protocol.dir/all
 src/CMakeFiles/afina.dir/all: src/network/CMakeFiles/Network.dir/all
@@ -2030,10 +2030,10 @@ test/coroutine/preinstall:
 # Target rules for target test/coroutine/CMakeFiles/runCoroutineTests.dir
 
 # All Build rule for target.
+test/coroutine/CMakeFiles/runCoroutineTests.dir/all: src/coroutine/CMakeFiles/Coroutine.dir/all
 test/coroutine/CMakeFiles/runCoroutineTests.dir/all: third-party/googletest-release-1.8.0/googlemock/gtest/CMakeFiles/gtest_main.dir/all
 test/coroutine/CMakeFiles/runCoroutineTests.dir/all: third-party/googletest-release-1.8.0/googlemock/gtest/CMakeFiles/gtest.dir/all
 test/coroutine/CMakeFiles/runCoroutineTests.dir/all: third-party/backward-cpp/CMakeFiles/backward_object.dir/all
-test/coroutine/CMakeFiles/runCoroutineTests.dir/all: src/coroutine/CMakeFiles/Coroutine.dir/all
 	$(MAKE) -f test/coroutine/CMakeFiles/runCoroutineTests.dir/build.make test/coroutine/CMakeFiles/runCoroutineTests.dir/depend
 	$(MAKE) -f test/coroutine/CMakeFiles/runCoroutineTests.dir/build.make test/coroutine/CMakeFiles/runCoroutineTests.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/Users/dovvakkin/ssh/afina/cmake-build-system/CMakeFiles --progress-num=57,58 "Built target runCoroutineTests"
