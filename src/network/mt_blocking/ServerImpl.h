@@ -21,7 +21,10 @@ namespace MTblocking {
 class ServerImpl : public Server {
 public:
     ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl);
-    ~ServerImpl();
+    ~ServerImpl() {
+        //todo
+        /* destructor here */
+    };
 
     // See Server.h
     void Start(uint16_t port, uint32_t, uint32_t) override;

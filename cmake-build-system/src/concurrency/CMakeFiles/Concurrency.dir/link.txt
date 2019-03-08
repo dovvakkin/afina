@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libConcurrency.a  CMakeFiles/Concurrency.dir/Executor.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libConcurrency.a

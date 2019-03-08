@@ -45,13 +45,14 @@ public:
     }
 
     // see SimpleLRU.h
-    bool Get(const std::string &key, std::string &value) const override {
+    bool Get(const std::string &key, std::string &value) override {
         // TODO: sinchronization
         return SimpleLRU::Get(key, value);
     }
 
 private:
     // TODO: sinchronization primitives
+
 };
 
 } // namespace Backend

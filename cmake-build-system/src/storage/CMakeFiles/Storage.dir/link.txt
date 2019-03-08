@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libStorage.a  CMakeFiles/Storage.dir/SimpleLRU.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libStorage.a

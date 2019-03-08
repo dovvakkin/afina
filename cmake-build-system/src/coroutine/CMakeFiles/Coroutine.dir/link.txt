@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libCoroutine.a  CMakeFiles/Coroutine.dir/Engine.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libCoroutine.a

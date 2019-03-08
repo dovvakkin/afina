@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libLogging.a  CMakeFiles/Logging.dir/ServiceImpl.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libLogging.a
