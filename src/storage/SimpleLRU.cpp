@@ -58,9 +58,6 @@ namespace Afina {
                 return false;
             }
 
-            if (_lru_index.find(std::reference_wrapper<const std::string>(key)) != _lru_index.end()) {
-                return false;
-            }
 
             if ((key.size() + value.size()) > _free_size) {
                 _free_until_fit(key.size() + value.size());
@@ -97,11 +94,7 @@ namespace Afina {
             }
 
             auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
-            if (fnd == _lru_index.end()) {
-                return false;
-            }
 
-            /* code here */
             _move_to_tail(fnd->second.get());
 
             _free_size += fnd->second.get().value.size();
@@ -114,8 +107,6 @@ namespace Afina {
         }
 
 // See MapBasedGlobalLockImpl.h
-//todo
-//first-last
 bool SimpleLRU::Delete(const std::string &key) {
     auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
     if (fnd == _lru_index.end()) {
@@ -127,13 +118,19 @@ bool SimpleLRU::Delete(const std::string &key) {
     _free_size += (exist.value.size() + exist.key.size());
     _lru_index.erase(key);
 
+    //if first
     if (exist.prev == nullptr) {
-        exist.next->prev = nullptr;
-        _lru_head.swap(exist.next);
-        exist.next = nullptr;
+        if (exist.next == nullptr) {
+            _lru_head.reset();
+        } else {
+            exist.next->prev = nullptr;
+            _lru_head.swap(exist.next);
+            exist.next = nullptr;
+        }
         return true;
     }
 
+    //if last
     if (exist.next == nullptr) {
         exist.prev->next.swap(exist.next);
         _lru_tail = exist.prev;
@@ -141,6 +138,7 @@ bool SimpleLRU::Delete(const std::string &key) {
         return true;
     }
 
+    //if middle
     {
         exist.next->prev = exist.prev;
         exist.prev->next.swap(exist.next);

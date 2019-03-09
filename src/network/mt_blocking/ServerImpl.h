@@ -58,7 +58,7 @@ private:
     std::thread _thread;
 
     // Worker counter
-    std::atomic<uint> _wcounter;
+    std::atomic<uint> _w_counter;
 
     const uint  _max_workers = 2;
 

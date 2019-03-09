@@ -83,7 +83,7 @@ void ServerImpl::Stop() {
     //todo
     /* gently stop here */
     std::unique_lock<std::mutex> lck(mtx);
-    while (_wcounter > 0) {
+    while (_w_counter > 0) {
         cv.wait(lck);
     }
 
@@ -142,14 +142,14 @@ void ServerImpl::OnRun() {
 
         // TODO: Start new thread and process data from/to connection
         {
-            if (_wcounter >= _max_workers) {
+            if (_w_counter >= _max_workers) {
                 static const std::string msg = "Еhe limit of possible connections has been reachedб try again later";
                 if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
                     _logger->error("Failed to write response to client: {}", strerror(errno));
                 }
                 close(client_socket);
             } else {
-                ++_wcounter;
+                ++_w_counter;
                 //todo
                 /* thread function */
                 std::thread(&ServerImpl::user_handler, this, client_socket).detach();
@@ -248,9 +248,9 @@ void ServerImpl::user_handler(int client_socket) {
     // We are done with this connection
     close(client_socket);
 
-    --_wcounter;
+    --_w_counter;
     std::unique_lock<std::mutex> lck(mtx);
-    if(_wcounter == 0) {
+    if(_w_counter == 0) {
         cv.notify_one();
     }
 }

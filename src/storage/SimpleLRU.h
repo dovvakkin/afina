@@ -22,7 +22,6 @@ namespace Afina {
 
             ~SimpleLRU() {
                 _lru_index.clear();
-                // _lru_head.reset(); // TODO: Here is stack overflow
                 while (_lru_head != nullptr && _lru_head->next != nullptr) {
                     std::unique_ptr<lru_node> tmp = nullptr;
                     tmp.swap(_lru_head->next);
