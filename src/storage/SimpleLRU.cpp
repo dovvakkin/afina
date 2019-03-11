@@ -3,7 +3,6 @@
 
 namespace Afina {
     namespace Backend {
-
         void SimpleLRU::_free_until_fit(size_t needed_size) {
 
             while (_free_size < needed_size) {
@@ -14,6 +13,8 @@ namespace Afina {
                 _lru_head->prev = nullptr;
             }
         }
+
+        //todo
 
         void SimpleLRU::_move_to_tail(lru_node &exist) {
             if (exist.next == nullptr) {
@@ -42,37 +43,25 @@ namespace Afina {
             }
         }
 
-// See MapBasedGlobalLockImpl.h
-        bool SimpleLRU::Put(const std::string &key, const std::string &value) {
-            // if key in map
-            if (_lru_index.find(std::reference_wrapper<const std::string>(key)) != _lru_index.end()) {
-                return SimpleLRU::Set(key, value);
-            } else {
-                return SimpleLRU::PutIfAbsent(key, value);
-            }
-        }
-
-// See MapBasedGlobalLockImpl.h
-        bool SimpleLRU::PutIfAbsent(const std::string &key, const std::string &value) {
+        bool SimpleLRU::_PutIfAbsent(const std::string &key, const std::string &value) {
             if ((key.size() + value.size()) > _max_size) {
                 return false;
             }
-
 
             if ((key.size() + value.size()) > _free_size) {
                 _free_until_fit(key.size() + value.size());
             }
 
-
             _free_size -= (key.size() + value.size());
-            auto *added = new lru_node;
-            added->key = key;
-            added->value = value;
-            added->next = nullptr;
-            added->prev = nullptr;
+            auto *added = new lru_node{key, value, nullptr, nullptr};
+//            added->key = key;
+//            added->value = value;
+//            added->next = nullptr;
+//            added->prev = nullptr;
 
-            _lru_index.insert({std::reference_wrapper<const std::string>(added->key), std::reference_wrapper<lru_node>
-                    (*added)});
+            _lru_index.insert(
+                    {std::reference_wrapper<const std::string>(added->key), std::reference_wrapper<lru_node>
+                            (*added)});
 
             if (_lru_tail != nullptr) {
                 _lru_tail->next = std::unique_ptr<lru_node>(added);
@@ -83,18 +72,14 @@ namespace Afina {
                 _lru_head.reset(added);
             }
 
-
             return true;
         }
 
-// See MapBasedGlobalLockImpl.h
-        bool SimpleLRU::Set(const std::string &key, const std::string &value) {
+        bool SimpleLRU::_Set(const std::string &key, const std::string &value,
+                             Afina::Backend::SimpleLRU::index_map_iterator &fnd) {
             if ((key.size() + value.size()) > _max_size) {
                 return false;
             }
-
-            auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
-
             _move_to_tail(fnd->second.get());
 
             _free_size += fnd->second.get().value.size();
@@ -106,48 +91,72 @@ namespace Afina {
             return true;
         }
 
-// See MapBasedGlobalLockImpl.h
-bool SimpleLRU::Delete(const std::string &key) {
-    auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
-    if (fnd == _lru_index.end()) {
-        return false;
-    }
-
-
-    lru_node& exist = fnd->second.get();
-    _free_size += (exist.value.size() + exist.key.size());
-    _lru_index.erase(key);
-
-    //if first
-    if (exist.prev == nullptr) {
-        if (exist.next == nullptr) {
-            _lru_head.reset();
-        } else {
-            exist.next->prev = nullptr;
-            _lru_head.swap(exist.next);
-            exist.next = nullptr;
+        bool SimpleLRU::PutIfAbsent(const std::string &key, const std::string &value) {
+            auto fnd = _lru_index.find(
+                    std::reference_wrapper<const std::string>(key));
+            if (fnd != _lru_index.end()) {
+                return _PutIfAbsent(key, value);
+            } else {
+                return false;
+            }
         }
-        return true;
-    }
 
-    //if last
-    if (exist.next == nullptr) {
-        exist.prev->next.swap(exist.next);
-        _lru_tail = exist.prev;
-        exist.next = nullptr;
-        return true;
-    }
+        bool SimpleLRU::Put(const std::string &key, const std::string &value) {
+            auto fnd = _lru_index.find(
+                    std::reference_wrapper<const std::string>(key));
+            if (fnd == _lru_index.end()) {
+                return _Set(key, value, fnd);
+            } else {
+                return _PutIfAbsent(key, value);
+            }
+        }
 
-    //if middle
-    {
-        exist.next->prev = exist.prev;
-        exist.prev->next.swap(exist.next);
-        exist.next = nullptr;
+// See MapBasedGlobalLockImpl.h
+        bool SimpleLRU::Set(const std::string &key, const std::string &value) {
+            auto fnd = _lru_index.find(
+                    std::reference_wrapper<const std::string>(key));
+            if (fnd == _lru_index.end()) {
+                return false;
+            }
 
-        return true;
-    }
-}
+            return _Set(key, value, fnd);
+        }
 
+// See MapBasedGlobalLockImpl.h
+//todo
+//first-last
+        bool SimpleLRU::Delete(const std::string &key) {
+            auto fnd = _lru_index.find(std::reference_wrapper<const std::string>(key));
+            if (fnd == _lru_index.end()) {
+                return false;
+            }
+
+            lru_node &exist = fnd->second.get();
+            _free_size += (exist.value.size() + exist.key.size());
+            _lru_index.erase(key);
+
+            if (exist.prev == nullptr) {
+                exist.next->prev = nullptr;
+                _lru_head.swap(exist.next);
+                exist.next = nullptr;
+                return true;
+            }
+
+            if (exist.next == nullptr) {
+                exist.prev->next.swap(exist.next);
+                _lru_tail = exist.prev;
+                exist.next = nullptr;
+                return true;
+            }
+
+            {
+                exist.next->prev = exist.prev;
+                exist.prev->next.swap(exist.next);
+                exist.next = nullptr;
+
+                return true;
+            }
+        }
 
 
 // See MapBasedGlobalLockImpl.h
@@ -162,6 +171,5 @@ bool SimpleLRU::Delete(const std::string &key) {
 
             return true;
         }
-
     } // namespace Backend
 } // namespace Afina

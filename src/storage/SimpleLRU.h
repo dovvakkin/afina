@@ -17,6 +17,18 @@ namespace Afina {
  * That is NOT thread safe implementaiton!!
  */
         class SimpleLRU : public Afina::Storage {
+        private:
+            // LRU cache node
+            using lru_node = struct lru_node {
+                const std::string key;
+                std::string value;
+                lru_node *prev;
+                std::unique_ptr<lru_node> next;
+            };
+
+            using index_map_iterator = std::map<std::reference_wrapper<const std::string>,
+                    std::reference_wrapper<lru_node>>::iterator;
+
         public:
             SimpleLRU(size_t max_size = 1024) : _max_size(max_size), _free_size(max_size) {}
 
@@ -30,6 +42,13 @@ namespace Afina {
                 }
                 _lru_head.reset();
             }
+
+            //todo
+            bool _PutIfAbsent(const std::string &key, const std::string &value);
+
+            //todo
+            bool _Set(const std::string &key, const std::string &value, index_map_iterator &it);
+
 
             // Implements Afina::Storage interface
             bool Put(const std::string &key, const std::string &value) override;
@@ -46,15 +65,7 @@ namespace Afina {
             // Implements Afina::Storage interface
             bool Get(const std::string &key, std::string &value) override;
 
-        private:
-            // LRU cache node
-            using lru_node = struct lru_node {
-                std::string key;
-                std::string value;
-                lru_node *prev;
-                std::unique_ptr<lru_node> next;
-            };
-
+            private:
             // Maximum number of bytes could be stored in this cache.
             // i.e all (keys+values) must be less the _max_size
             std::size_t _max_size;
@@ -85,3 +96,7 @@ namespace Afina {
 } // namespace Afina
 
 #endif // AFINA_STORAGE_SIMPLE_LRU_H
+
+//todo
+
+
