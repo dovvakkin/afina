@@ -15,7 +15,6 @@ namespace Afina {
         }
 
         //todo
-
         void SimpleLRU::_move_to_tail(lru_node &exist) {
             if (exist.next == nullptr) {
                 return;
@@ -94,7 +93,7 @@ namespace Afina {
         bool SimpleLRU::PutIfAbsent(const std::string &key, const std::string &value) {
             auto fnd = _lru_index.find(
                     std::reference_wrapper<const std::string>(key));
-            if (fnd != _lru_index.end()) {
+            if (fnd == _lru_index.end()) {
                 return _PutIfAbsent(key, value);
             } else {
                 return false;
@@ -104,7 +103,7 @@ namespace Afina {
         bool SimpleLRU::Put(const std::string &key, const std::string &value) {
             auto fnd = _lru_index.find(
                     std::reference_wrapper<const std::string>(key));
-            if (fnd == _lru_index.end()) {
+            if (fnd != _lru_index.end()) {
                 return _Set(key, value, fnd);
             } else {
                 return _PutIfAbsent(key, value);
