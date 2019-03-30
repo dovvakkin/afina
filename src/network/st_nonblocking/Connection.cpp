@@ -133,20 +133,23 @@ void Connection::DoRead() {
 void Connection::DoWrite() {
     int free_size;
     ioctl(_socket, FIONREAD, &free_size);
-
-    if (free_size >= (answers.size() - current_pos)) {
-        if (send(_socket, answers.c_str() + current_pos, answers.size(), 0) <= 0) {
-            throw std::runtime_error("Failed to send response");
+    try {
+        if (free_size >= (answers.size() - current_pos)) {
+            if (send(_socket, answers.c_str() + current_pos, answers.size(), 0) <= 0) {
+                throw std::runtime_error("Failed to send response");
+            }
+            answers.erase();
+            current_pos = 0;
+            _event.events = EPOLLREAD;
+        } else {
+            if (send(_socket, answers.c_str() + current_pos, free_size, 0) <= 0) {
+                throw std::runtime_error("Failed to send response");
+            }
+            current_pos += free_size;
+            _event.events = EPOLLREADWRITE;
         }
-        answers.erase();
-        current_pos = 0;
-        _event.events = EPOLLREAD;
-    } else {
-        if (send(_socket, answers.c_str() + current_pos, free_size, 0) <= 0) {
-            throw std::runtime_error("Failed to send response");
-        }
-        current_pos += free_size;
-        _event.events = EPOLLREADWRITE;
+    } catch (std::runtime_error &ex) {
+        _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
     }
 }
 
