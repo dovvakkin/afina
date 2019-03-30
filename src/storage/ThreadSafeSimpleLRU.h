@@ -59,7 +59,6 @@ private:
     // TODO: synchronization primitives
 
     std::mutex sync_mtx;
-
 };
 
 } // namespace Backend
