@@ -3,10 +3,10 @@
 
 #include <cstring>
 
-#include <sys/epoll.h>
+#include <afina/execute/Command.h>
 #include <protocol/Parser.h>
 #include <spdlog/logger.h>
-#include <afina/execute/Command.h>
+#include <sys/epoll.h>
 
 namespace Afina {
 namespace Network {
@@ -14,9 +14,11 @@ namespace STnonblock {
 
 class Connection {
 public:
-    Connection(int s, std::shared_ptr<Afina::Storage> ps) : _socket(s), pStorage(ps) {
+    Connection(int s, std::shared_ptr<Afina::Storage> ps, std::shared_ptr<spdlog::logger> log)
+        : _socket(s), pStorage(ps), _logger(log) {
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _event.data.ptr = this;
+        _event.events = EPOLLREAD;
     }
 
     inline bool isAlive() const { return _isAlive; }

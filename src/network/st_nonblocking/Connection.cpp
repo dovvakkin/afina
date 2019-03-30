@@ -15,6 +15,7 @@ void Connection::Start() {
     _logger->info("Start on descriptor {}", _socket);
     _isAlive = true;
     _event.data.fd = _socket;
+    _event.data.ptr = this;
     _event.events = EPOLLREAD;
 }
 
