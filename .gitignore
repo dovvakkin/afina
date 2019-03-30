@@ -16,6 +16,5 @@ compile_commands.json
 cquery_log.txt
 
 # macOS
-.DS_Store
-._.DS_Stor
-._*
+*.DS_Store
+*._*
