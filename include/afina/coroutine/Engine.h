@@ -76,7 +76,7 @@ protected:
     // void Enter(context& ctx);
 
 public:
-    Engine() : StackBottom(0), cur_routine(nullptr), alive(nullptr) {}
+    Engine() : StackBottom(nullptr), cur_routine(nullptr), alive(nullptr) {}
     Engine(Engine &&) = delete;
     Engine(const Engine &) = delete;
 
@@ -142,7 +142,7 @@ public:
         }
 
         // New coroutine context that carries around all information enough to call function
-        context *pc = new context();
+        auto *pc = new context();
 
         // Store current state right here, i.e just before enter new coroutine, later, once it gets scheduled
         // execution starts here. Note that we have to acquire stack of the current function call to ensure
