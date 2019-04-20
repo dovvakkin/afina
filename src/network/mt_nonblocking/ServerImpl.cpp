@@ -193,9 +193,22 @@ void ServerImpl::OnRun() {
                 }
 
                 // Register the new FD to be monitored by epoll.
-                Connection *pc = new Connection(infd);
-                if (pc == nullptr) {
-                    throw std::runtime_error("Failed to allocate connection");
+
+                Connection *pc = static_cast<Connection *>(current_event.data.ptr);
+
+                auto old_mask = pc->_event.events;
+                if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
+                    pc->OnError();
+                } else if (current_event.events & EPOLLRDHUP) {
+                    pc->OnClose();
+                } else {
+                    // Depends on what connection wants...
+                    if (current_event.events & EPOLLIN) {
+                        pc->DoRead();
+                    }
+                    if (current_event.events & EPOLLOUT) {
+                        pc->DoWrite();
+                    }
                 }
 
                 // Register connection in worker's epoll
