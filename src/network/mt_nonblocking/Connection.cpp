@@ -16,7 +16,7 @@ namespace MTnonblock {
 void Connection::Start() {
     _logger->info("Start on descriptor {}", _socket);
     {
-        std::unique_lock<std::mutex> lck(mtx);
+        std::unique_lock<std::mutex> lck(isAlive_mtx);
         _isAlive = true;
     }
 //    _event.data.fd = _socket;
@@ -28,7 +28,7 @@ void Connection::Start() {
 void Connection::OnError() {
     _logger->info("OnError on descriptor {}", _socket);
     {
-        std::unique_lock<std::mutex> lck(mtx);
+        std::unique_lock<std::mutex> lck(isAlive_mtx);
         _isAlive = false;
     }
     _logger->error("Error connection on descriptor {}", _socket);
@@ -42,7 +42,7 @@ void Connection::OnError() {
 void Connection::OnClose() {
     _logger->info("OnClose on descriptor {}", _socket);
     {
-        std::unique_lock<std::mutex> lck(mtx);
+        std::unique_lock<std::mutex> lck(isAlive_mtx);
         _isAlive = false;
     }
     _logger->debug("Closed connection on descriptor {}", _socket);
@@ -111,7 +111,7 @@ void Connection::DoRead() {
                     // Send response
                     result += "\r\n";
                     {
-                        std::unique_lock<std::mutex> lck(mtx);
+                        std::unique_lock<std::mutex> lck(answers_mtx);
                         answers += result;
                     }
 
@@ -148,7 +148,7 @@ void Connection::DoWrite() {
     int free_size;
     ioctl(_socket, FIONREAD, &free_size);
     try {
-        std::unique_lock<std::mutex> lck(mtx);
+        std::unique_lock<std::mutex> lck(answers_mtx);
         if (free_size >= (answers.size() - current_pos)) {
             if (send(_socket, answers.c_str() + current_pos, answers.size(), 0) <= 0) {
                 throw std::runtime_error("Failed to send response");

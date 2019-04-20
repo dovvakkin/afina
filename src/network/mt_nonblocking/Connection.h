@@ -52,7 +52,9 @@ private:
     std::string argument_for_command;
     std::unique_ptr<Execute::Command> command_to_execute;
 
-    std::mutex mtx;
+    std::mutex answers_mtx;
+    std::mutex isAlive_mtx;
+
 };
 
 } // namespace MTnonblock
