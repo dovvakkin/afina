@@ -15,7 +15,10 @@ namespace MTnonblock {
 // See Connection.h
 void Connection::Start() {
     _logger->info("Start on descriptor {}", _socket);
-    _isAlive = true;
+    {
+        std::unique_lock<std::mutex> lck(mtx);
+        _isAlive = true;
+    }
 //    _event.data.fd = _socket;
     _event.data.ptr = this;
     _event.events = EPOLLREAD;
@@ -24,7 +27,10 @@ void Connection::Start() {
 // See Connection.h
 void Connection::OnError() {
     _logger->info("OnError on descriptor {}", _socket);
-    _isAlive = false;
+    {
+        std::unique_lock<std::mutex> lck(mtx);
+        _isAlive = false;
+    }
     _logger->error("Error connection on descriptor {}", _socket);
     std::string err_message = "something went wrong\r\n";
     if (send(_socket, err_message.data(), err_message.size(), 0) <= 0) {
@@ -35,7 +41,10 @@ void Connection::OnError() {
 // See Connection.h
 void Connection::OnClose() {
     _logger->info("OnClose on descriptor {}", _socket);
-    _isAlive = false;
+    {
+        std::unique_lock<std::mutex> lck(mtx);
+        _isAlive = false;
+    }
     _logger->debug("Closed connection on descriptor {}", _socket);
     std::string message = "Connection is closed\r\n";
     if (send(_socket, message.data(), message.size(), 0) <= 0) {
