@@ -20,6 +20,7 @@
 #include <afina/Storage.h>
 #include <afina/execute/Command.h>
 #include <afina/logging/Service.h>
+#include <unordered_set>
 
 #include "protocol/Parser.h"
 
@@ -80,14 +81,10 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
 void ServerImpl::Stop() {
     running.store(false);
 
-    //todo
-    /* gently stop here */
-    std::unique_lock<std::mutex> lck(mtx);
-    while (_w_counter > 0) {
-        cv.wait(lck);
-    }
-
     shutdown(_server_socket, SHUT_RDWR);
+    for (std::unordered_set<int>::iterator itr = client_sockets.begin(); itr != client_sockets.end(); itr++) {
+        shutdown(*itr, SHUT_RD);
+    }
 }
 
 // See Server.h
@@ -95,6 +92,12 @@ void ServerImpl::Join() {
     assert(_thread.joinable());
     _thread.join();
     close(_server_socket);
+
+    std::unique_lock<std::mutex> lck(mtx);
+    while (_w_counter > 0) {
+        cv.wait(lck);
+    }
+
 }
 
 // See Server.h
@@ -152,6 +155,8 @@ void ServerImpl::OnRun() {
                 ++_w_counter;
                 //todo
                 /* thread function */
+                std::unique_lock<std::mutex> lck(client_set_mutex);
+                client_sockets.insert(client_socket);
                 std::thread(&ServerImpl::user_handler, this, client_socket).detach();
             }
 
@@ -249,7 +254,9 @@ void ServerImpl::user_handler(int client_socket) {
     close(client_socket);
 
     --_w_counter;
-    std::unique_lock<std::mutex> lck(mtx);
+    std::unique_lock<std::mutex> counter_lck(mtx);
+    std::unique_lock<std::mutex> sockets_lck(client_set_mutex);
+    client_sockets.erase(client_socket);
     if(_w_counter == 0) {
         cv.notify_one();
     }

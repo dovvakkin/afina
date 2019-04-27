@@ -67,6 +67,10 @@ private:
 
     //
     std::condition_variable cv;
+
+    std::unordered_set<int> client_sockets;
+
+    std::mutex client_set_mutex;
 };
 
 } // namespace MTblocking
