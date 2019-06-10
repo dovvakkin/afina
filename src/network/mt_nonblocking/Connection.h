@@ -33,6 +33,7 @@ protected:
 
 private:
     friend class ServerImpl;
+    friend class Worker;
 
     const int EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP;
     const int EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT;

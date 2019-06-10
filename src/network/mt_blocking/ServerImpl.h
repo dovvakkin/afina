@@ -5,6 +5,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_set>
 
 #include <afina/network/Server.h>
 

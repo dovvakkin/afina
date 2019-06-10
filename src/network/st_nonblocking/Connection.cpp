@@ -1,7 +1,10 @@
 #include "Connection.h"
 
+
+
 #include <iostream>
 #include <unistd.h>
+#include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -16,7 +19,7 @@ void Connection::Start() {
     _isAlive = true;
 //    _event.data.fd = _socket;
     _event.data.ptr = this;
-    _event.events = EPOLLREAD;
+    _event.events = MASK_EPOLLREAD;
 }
 
 // See Connection.h
@@ -44,9 +47,10 @@ void Connection::OnClose() {
 // See Connection.h
 void Connection::DoRead() {
     try {
-        int readed_bytes = -1;
+        int readed_bytes_new = -1;
         char client_buffer[4096];
-        while ((readed_bytes = read(_socket, client_buffer, sizeof(client_buffer))) > 0) {
+        while ((readed_bytes_new = read(_socket, client_buffer, sizeof(client_buffer))) > 0) {
+            readed_bytes += readed_bytes_new;
             _logger->debug("Got {} bytes from socket", readed_bytes);
 
             // Single block of data readed from the socket could trigger inside actions a multiple times,
@@ -99,17 +103,18 @@ void Connection::DoRead() {
 
                     // Send response
                     result += "\r\n";
-                    answers += result;
+                    _answers.push_back(result);
 
                     // Prepare for the next command
                     command_to_execute.reset();
                     argument_for_command.resize(0);
                     parser.Reset();
+
+                    _event.events = MASK_EPOLLREADWRITE;
                 }
             } // while (readed_bytes)
         }
 
-        // todo ?
         if (readed_bytes == 0) {
             _logger->debug("Connection closed");
         } else {
@@ -126,30 +131,35 @@ void Connection::DoRead() {
     argument_for_command.resize(0);
     parser.Reset();
 
-    _event.events = EPOLLREADWRITE;
+    _event.events = MASK_EPOLLREADWRITE;
 }
 
 // See Connection.h
 void Connection::DoWrite() {
-    int free_size;
-    ioctl(_socket, FIONREAD, &free_size);
-    try {
-        if (free_size >= (answers.size() - current_pos)) {
-            if (send(_socket, answers.c_str() + current_pos, answers.size(), 0) <= 0) {
-                throw std::runtime_error("Failed to send response");
-            }
-            answers.erase();
-            current_pos = 0;
-            _event.events = EPOLLREAD;
-        } else {
-            if (send(_socket, answers.c_str() + current_pos, free_size, 0) <= 0) {
-                throw std::runtime_error("Failed to send response");
-            }
-            current_pos += free_size;
-            _event.events = EPOLLREADWRITE;
-        }
-    } catch (std::runtime_error &ex) {
-        _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
+    struct iovec iovecs[_answers.size()];
+    for (int i = 0; i < _answers.size(); i++) {
+        iovecs[i].iov_len = _answers[i].size();
+        iovecs[i].iov_base = &(_answers[i][0]);
+    }
+    iovecs[0].iov_base = static_cast<char*>(iovecs[0].iov_base) + _position;
+
+    assert(iovecs[0].iov_len > _position);
+    iovecs[0].iov_len -= _position;
+
+    int written;
+    if ((written = writev(_socket, iovecs, _answers.size())) <= 0) {
+        _logger->error("Failed to send response");
+    }
+    _position += written;
+
+    int i = 0;
+    for (; i < _answers.size() && (_position - iovecs[i].iov_len) >= 0; i++) {
+        _position -= iovecs[i].iov_len;
+    }
+
+    _answers.erase(_answers.begin(), _answers.begin() + i);
+    if (_answers.empty()) {
+        _event.events = MASK_EPOLLREAD;
     }
 }
 

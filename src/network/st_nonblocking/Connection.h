@@ -18,7 +18,7 @@ public:
         : _socket(s), pStorage(ps), _logger(log) {
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _event.data.ptr = this;
-        _event.events = EPOLLREAD;
+        _event.events = MASK_EPOLLREAD;
     }
 
     inline bool isAlive() const { return _isAlive; }
@@ -34,8 +34,8 @@ protected:
 private:
     friend class ServerImpl;
 
-    const int EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP;
-    const int EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT;
+    const int MASK_EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP;
+    const int MASK_EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT;
 
     int _socket;
     struct epoll_event _event;
@@ -44,13 +44,18 @@ private:
     std::shared_ptr<spdlog::logger> _logger;
     std::shared_ptr<Afina::Storage> pStorage;
 
-    std::string answers;
     size_t current_pos = 0;
 
     size_t arg_remains;
     Protocol::Parser parser;
     std::string argument_for_command;
     std::unique_ptr<Execute::Command> command_to_execute;
+
+    int readed_bytes = 0;
+    char client_buffer[4096];
+
+    std::vector<std::string> _answers;
+    int _position = 0;
 };
 
 } // namespace STnonblock
