@@ -37,11 +37,11 @@ void Connection::OnError() {
 void Connection::OnClose() {
     _logger->info("OnClose on descriptor {}", _socket);
     _isAlive = false;
-    _logger->debug("Closed connection on descriptor {}", _socket);
-    std::string message = "Connection is closed\r\n";
-    if (send(_socket, message.data(), message.size(), 0) <= 0) {
-        throw std::runtime_error("Failed to send response");
-    }
+//    _logger->debug("Closed connection on descriptor {}", _socket);
+//    std::string message = "Connection is closed\r\n";
+//    if (send(_socket, message.data(), message.size(), 0) <= 0) {
+//        throw std::runtime_error("Failed to send response");
+//    }
 }
 
 // See Connection.h
