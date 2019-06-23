@@ -19,6 +19,7 @@ public:
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _event.data.ptr = this;
         _event.events = EPOLLREAD;
+        _isAlive.store(true);
     }
 
     inline bool isAlive() const { return _isAlive; }
@@ -35,27 +36,30 @@ private:
     friend class ServerImpl;
     friend class Worker;
 
-    const int EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP;
-    const int EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT;
+    const int EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLONESHOT;
+    const int EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT | EPOLLONESHOT;
 
     int _socket;
     struct epoll_event _event;
-    bool _isAlive;
+    std::atomic<bool> _isAlive;
+
+//    std::mutex _mutex;
+//    std::atomic<bool> _sync_read;
+    std::mutex answers_mtx;
 
     std::shared_ptr<spdlog::logger> _logger;
     std::shared_ptr<Afina::Storage> pStorage;
-
-    std::string answers;
-    size_t current_pos = 0;
 
     size_t arg_remains;
     Protocol::Parser parser;
     std::string argument_for_command;
     std::unique_ptr<Execute::Command> command_to_execute;
 
-    std::mutex answers_mtx;
-    std::mutex isAlive_mtx;
+    int readed_bytes = 0;
+    char client_buffer[4096];
 
+    std::vector<std::string> _answers;
+    int _position = 0;
 };
 
 } // namespace MTnonblock

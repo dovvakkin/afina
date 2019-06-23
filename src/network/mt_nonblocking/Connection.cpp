@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <unistd.h>
+#include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -15,10 +16,7 @@ namespace MTnonblock {
 // See Connection.h
 void Connection::Start() {
     _logger->info("Start on descriptor {}", _socket);
-    {
-        std::unique_lock<std::mutex> lck(isAlive_mtx);
-        _isAlive = true;
-    }
+    _isAlive.store(true);
 //    _event.data.fd = _socket;
     _event.data.ptr = this;
     _event.events = EPOLLREAD;
@@ -27,10 +25,7 @@ void Connection::Start() {
 // See Connection.h
 void Connection::OnError() {
     _logger->info("OnError on descriptor {}", _socket);
-    {
-        std::unique_lock<std::mutex> lck(isAlive_mtx);
-        _isAlive = false;
-    }
+    _isAlive.store(false);
     _logger->error("Error connection on descriptor {}", _socket);
     std::string err_message = "something went wrong\r\n";
     if (send(_socket, err_message.data(), err_message.size(), 0) <= 0) {
@@ -41,10 +36,7 @@ void Connection::OnError() {
 // See Connection.h
 void Connection::OnClose() {
     _logger->info("OnClose on descriptor {}", _socket);
-    {
-        std::unique_lock<std::mutex> lck(isAlive_mtx);
-        _isAlive = false;
-    }
+    _isAlive.store(false);
     _logger->debug("Closed connection on descriptor {}", _socket);
     std::string message = "Connection is closed\r\n";
     if (send(_socket, message.data(), message.size(), 0) <= 0) {
@@ -112,7 +104,7 @@ void Connection::DoRead() {
                     result += "\r\n";
                     {
                         std::unique_lock<std::mutex> lck(answers_mtx);
-                        answers += result;
+                        _answers.push_back(result);
                     }
 
                     // Prepare for the next command
@@ -145,27 +137,41 @@ void Connection::DoRead() {
 
 // See Connection.h
 void Connection::DoWrite() {
-    int free_size;
-    ioctl(_socket, FIONREAD, &free_size);
-    try {
-        std::unique_lock<std::mutex> lck(answers_mtx);
-        if (free_size >= (answers.size() - current_pos)) {
-            if (send(_socket, answers.c_str() + current_pos, answers.size(), 0) <= 0) {
-                throw std::runtime_error("Failed to send response");
-            }
-            answers.erase();
-            current_pos = 0;
-            _event.events = EPOLLREAD;
-        } else {
-            if (send(_socket, answers.c_str() + current_pos, free_size, 0) <= 0) {
-                throw std::runtime_error("Failed to send response");
-            }
-            current_pos += free_size;
-            _event.events = EPOLLREADWRITE;
+    struct iovec *iovecs;
+    std::size_t ans_size;
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        ans_size = _answers.size();
+        iovecs = new struct iovec[ans_size];
+        for (int i = 0; i < _answers.size(); i++) {
+            iovecs[i].iov_len = _answers[i].size();
+            iovecs[i].iov_base = &(_answers[i][0]);
         }
-    } catch (std::runtime_error &ex) {
-        _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
     }
+    iovecs[0].iov_base = static_cast<char*>(iovecs[0].iov_base) + _position;
+
+    assert(iovecs[0].iov_len > _position);
+    iovecs[0].iov_len -= _position;
+
+    int written;
+    if ((written = writev(_socket, iovecs, ans_size)) <= 0) {
+        _logger->error("Failed to send response");
+    }
+    _position += written;
+
+    int i = 0;
+    for (; i < ans_size && (_position - iovecs[i].iov_len) >= 0; i++) {
+        _position -= iovecs[i].iov_len;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _answers.erase(_answers.begin(), _answers.begin() + i);
+        if (_answers.empty()) {
+            _event.events = mask_read;
+        }
+    }
+    delete[] iovecs;
 }
 
 } // namespace MTnonblock

@@ -48,7 +48,6 @@ void Connection::OnClose() {
 void Connection::DoRead() {
     try {
         int readed_bytes_new = -1;
-        char client_buffer[4096];
         while ((readed_bytes_new = read(_socket, client_buffer, sizeof(client_buffer))) > 0) {
             readed_bytes += readed_bytes_new;
             _logger->debug("Got {} bytes from socket", readed_bytes);
@@ -137,9 +136,11 @@ void Connection::DoRead() {
 // See Connection.h
 void Connection::DoWrite() {
     struct iovec iovecs[_answers.size()];
-    for (int i = 0; i < _answers.size(); i++) {
-        iovecs[i].iov_len = _answers[i].size();
-        iovecs[i].iov_base = &(_answers[i][0]);
+    int i = 0;
+    for (auto iter : _answers) {
+        iovecs[i].iov_len = iter.size();
+        iovecs[i].iov_base = &(iter[0]);
+        ++i;
     }
     iovecs[0].iov_base = static_cast<char*>(iovecs[0].iov_base) + _position;
 
@@ -152,8 +153,8 @@ void Connection::DoWrite() {
     }
     _position += written;
 
-    int i = 0;
-    for (; i < _answers.size() && (_position - iovecs[i].iov_len) >= 0; i++) {
+    i = 0;
+    for (; i < _answers.size() && (_position >= iovecs[i].iov_len); i++) {
         _position -= iovecs[i].iov_len;
     }
 

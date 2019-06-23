@@ -63,13 +63,13 @@ private:
 
     const uint  _max_workers = 2;
 
-    //
-    std::mutex mtx;
+    char client_buffer[4096];
 
-    //
     std::condition_variable cv;
 
     std::unordered_set<int> client_sockets;
+
+    std::mutex mtx;
 
     std::mutex client_set_mutex;
 };

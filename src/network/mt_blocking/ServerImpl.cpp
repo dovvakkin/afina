@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <atomic>
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -144,20 +145,37 @@ void ServerImpl::OnRun() {
         }
 
         // TODO: Start new thread and process data from/to connection
+        uint w = _w_counter;
         {
-            if (_w_counter >= _max_workers) {
+            if (w >= _max_workers) {
                 static const std::string msg = "Еhe limit of possible connections has been reachedб try again later";
                 if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
                     _logger->error("Failed to write response to client: {}", strerror(errno));
                 }
                 close(client_socket);
             } else {
-                ++_w_counter;
-                //todo
-                /* thread function */
-                std::unique_lock<std::mutex> lck(client_set_mutex);
-                client_sockets.insert(client_socket);
-                std::thread(&ServerImpl::user_handler, this, client_socket).detach();
+//                ++_w_counter;
+                while(_w_counter.compare_exchange_weak(w, w+1))
+                    ;
+
+                { // lock only to insert
+                    std::unique_lock<std::mutex> lck(client_set_mutex);
+                    client_sockets.insert(client_socket);
+                }
+
+                try{
+                    std::thread(&ServerImpl::user_handler, this, client_socket).detach();
+                } catch (...) {
+                    { // lock only to insert
+                        std::unique_lock<std::mutex> lck(client_set_mutex);
+                        client_sockets.erase(client_socket);
+                    }
+                    static const std::string msg = "Error during creating worker thread, try again later";
+                    if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
+                        _logger->error("Failed to write response to client: {}", strerror(errno));
+                    }
+                    close(client_socket);
+                }
             }
 
         }
@@ -175,7 +193,6 @@ void ServerImpl::user_handler(int client_socket) {
 
     try {
         int readed_bytes = -1;
-        char client_buffer[4096];
         while ((readed_bytes = read(client_socket, client_buffer, sizeof(client_buffer))) > 0) {
             _logger->debug("Got {} bytes from socket", readed_bytes);
 
