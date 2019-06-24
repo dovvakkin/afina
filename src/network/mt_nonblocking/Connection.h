@@ -18,7 +18,7 @@ public:
         : _socket(s), pStorage(ps), _logger(log) {
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _event.data.ptr = this;
-        _event.events = EPOLLREAD;
+        _event.events = MASK_EPOLLREAD;
         _isAlive.store(true);
     }
 
@@ -36,16 +36,14 @@ private:
     friend class ServerImpl;
     friend class Worker;
 
-    const int EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLONESHOT;
-    const int EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT | EPOLLONESHOT;
+    const int MASK_EPOLLREAD = EPOLLIN | EPOLLERR | EPOLLRDHUP;
+    const int MASK_EPOLLREADWRITE = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLOUT;
 
     int _socket;
     struct epoll_event _event;
     std::atomic<bool> _isAlive;
 
-//    std::mutex _mutex;
-//    std::atomic<bool> _sync_read;
-    std::mutex answers_mtx;
+    std::mutex _mutex;
 
     std::shared_ptr<spdlog::logger> _logger;
     std::shared_ptr<Afina::Storage> pStorage;

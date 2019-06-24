@@ -111,6 +111,8 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
 void ServerImpl::Stop() {
     _logger->warn("Stop network service");
     // Said workers to stop
+    shutdown(_server_socket, SHUT_RDWR);
+
     for (auto &w : _workers) {
         w.Stop();
     }
@@ -119,6 +121,14 @@ void ServerImpl::Stop() {
     if (eventfd_write(_event_fd, 1)) {
         throw std::runtime_error("Failed to wakeup workers");
     }
+
+    {
+        std::lock_guard<std::mutex> lock(_conns_mutex);
+        for (auto client : _conns) {
+            shutdown(client->_socket, SHUT_RD);
+        }
+    }
+
 }
 
 // See Server.h
@@ -130,35 +140,45 @@ void ServerImpl::Join() {
     for (auto &w : _workers) {
         w.Join();
     }
+
+    {
+        std::lock_guard<std::mutex> lock(_conns_mutex);
+        for (auto client : _conns) {
+            close(client->_socket);
+            delete client;
+        }
+    }
+
+    _conns.clear();
 }
 
 // See ServerImpl.h
 void ServerImpl::OnRun() {
     _logger->info("Start acceptor");
-    int acceptor_epoll = epoll_create1(0);
-    if (acceptor_epoll == -1) {
+    int epoll_descr = epoll_create1(0);
+    if (epoll_descr == -1) {
         throw std::runtime_error("Failed to create epoll file descriptor: " + std::string(strerror(errno)));
     }
 
     struct epoll_event event;
-    event.events = EPOLLIN | EPOLLEXCLUSIVE;
+    event.events = EPOLLIN;
     event.data.fd = _server_socket;
-    if (epoll_ctl(acceptor_epoll, EPOLL_CTL_ADD, _server_socket, &event)) {
+    if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, _server_socket, &event)) {
         throw std::runtime_error("Failed to add file descriptor to epoll");
     }
 
     struct epoll_event event2;
     event2.events = EPOLLIN;
     event2.data.fd = _event_fd;
-    if (epoll_ctl(acceptor_epoll, EPOLL_CTL_ADD, _event_fd, &event2)) {
+    if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, _event_fd, &event2)) {
         throw std::runtime_error("Failed to add file descriptor to epoll");
     }
 
     bool run = true;
     std::array<struct epoll_event, 64> mod_list;
     while (run) {
-        int nmod = epoll_wait(acceptor_epoll, &mod_list[0], mod_list.size(), -1);
-        _logger->debug("Acceptor wokeup: {} events", nmod);
+        int nmod = epoll_wait(epoll_descr, &mod_list[0], mod_list.size(), -1);
+        _logger->debug("Acceptor wakeup: {} events", nmod);
 
         for (int i = 0; i < nmod; i++) {
             struct epoll_event &current_event = mod_list[i];
@@ -166,64 +186,111 @@ void ServerImpl::OnRun() {
                 _logger->debug("Break acceptor due to stop signal");
                 run = false;
                 continue;
+            } else if (current_event.data.fd == _server_socket) {
+                OnNewConnection(epoll_descr);
+                continue;
             }
 
-            for (;;) {
-                struct sockaddr in_addr;
-                socklen_t in_len;
+            // That is some connection!
+            Connection *pc = static_cast<Connection *>(current_event.data.ptr);
 
-                // No need to make these sockets non blocking since accept4() takes care of it.
-                in_len = sizeof in_addr;
-                int infd = accept4(_server_socket, &in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
-                if (infd == -1) {
-                    if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                        break; // We have processed all incoming connections.
-                    } else {
-                        _logger->error("Failed to accept socket");
-                        break;
+            auto old_mask = pc->_event.events;
+            if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
+                pc->OnError();
+            } else if (current_event.events & EPOLLRDHUP) {
+                pc->OnClose();
+            } else {
+                // Depends on what connection wants...
+                if (current_event.events & EPOLLIN) {
+                    pc->DoRead();
+                }
+                if (current_event.events & EPOLLOUT) {
+                    pc->DoWrite();
+                }
+            }
+
+            // Does it alive?
+            if (!pc->isAlive()) {
+                if (epoll_ctl(epoll_descr, EPOLL_CTL_DEL, pc->_socket, &pc->_event)) {
+                    _logger->error("Failed to delete connection from epoll");
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(_conns_mutex);
+                    _conns.erase(pc);
+                }
+                close(pc->_socket);
+                pc->OnClose();
+
+                delete pc;
+            } else if (pc->_event.events != old_mask) {
+                if (epoll_ctl(epoll_descr, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
+                    _logger->error("Failed to change connection event mask");
+
+                    {
+                        std::lock_guard<std::mutex> lock(_conns_mutex);
+                        _conns.erase(pc);
                     }
-                }
-
-                // Print host and service info.
-                char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
-                int retval = getnameinfo(&in_addr, in_len, hbuf, sizeof hbuf, sbuf, sizeof sbuf,
-                                         NI_NUMERICHOST | NI_NUMERICSERV);
-                if (retval == 0) {
-                    _logger->info("Accepted connection on descriptor {} (host={}, port={})\n", infd, hbuf, sbuf);
-                }
-
-                // Register the new FD to be monitored by epoll.
-
-                Connection *pc = static_cast<Connection *>(current_event.data.ptr);
-
-                auto old_mask = pc->_event.events;
-                if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
-                    pc->OnError();
-                } else if (current_event.events & EPOLLRDHUP) {
+                    close(pc->_socket);
                     pc->OnClose();
-                } else {
-                    // Depends on what connection wants...
-                    if (current_event.events & EPOLLIN) {
-                        pc->DoRead();
-                    }
-                    if (current_event.events & EPOLLOUT) {
-                        pc->DoWrite();
-                    }
-                }
 
-                // Register connection in worker's epoll
-                pc->Start();
-                if (pc->isAlive()) {
-                    pc->_event.events |= EPOLLONESHOT;
-                    if (epoll_ctl(_data_epoll_fd, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
-                        pc->OnError();
-                        delete pc;
-                    }
+                    delete pc;
                 }
             }
         }
     }
     _logger->warn("Acceptor stopped");
+}
+
+void ServerImpl::OnNewConnection(int epoll_descr) {
+    for (;;) {
+        struct sockaddr in_addr;
+        socklen_t in_len;
+
+        // No need to make these sockets non blocking since accept4() takes care of it.
+        in_len = sizeof in_addr;
+        int infd = accept4(_server_socket, &in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (infd == -1) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                break; // We have processed all incoming connections.
+            } else {
+                _logger->error("Failed to accept socket");
+                break;
+            }
+        }
+
+        // Print host and service info.
+        char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+        int retval =
+            getnameinfo(&in_addr, in_len, hbuf, sizeof hbuf, sbuf, sizeof sbuf, NI_NUMERICHOST | NI_NUMERICSERV);
+        if (retval == 0) {
+            _logger->info("Accepted connection on descriptor {} (host={}, port={})\n", infd, hbuf, sbuf);
+        }
+
+        // Register the new FD to be monitored by epoll.
+        Connection *pc = new (std::nothrow) Connection(infd, pStorage, _logger);
+        if (pc == nullptr) {
+            throw std::runtime_error("Failed to allocate connection");
+        }
+        {
+            std::lock_guard<std::mutex> lock(_conns_mutex);
+            _conns.insert(pc);
+        }
+
+
+        // Register connection in worker's epoll
+        pc->Start();
+        if (pc->isAlive()) {
+            if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, pc->_socket, &pc->_event)) {
+                {
+                    std::lock_guard<std::mutex> lock(_conns_mutex);
+                    _conns.erase(pc);
+                }
+                pc->OnError();
+                delete pc;
+            }
+        }
+    }
 }
 
 } // namespace MTnonblock

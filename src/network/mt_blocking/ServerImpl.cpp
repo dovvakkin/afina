@@ -83,8 +83,11 @@ void ServerImpl::Stop() {
     running.store(false);
 
     shutdown(_server_socket, SHUT_RDWR);
-    for (std::unordered_set<int>::iterator itr = client_sockets.begin(); itr != client_sockets.end(); itr++) {
-        shutdown(*itr, SHUT_RD);
+    {
+        std::lock_guard<std::mutex> lock(client_set_mutex);
+        for (auto iter : client_sockets) {
+            shutdown(iter, SHUT_RD);
+        }
     }
 }
 
@@ -166,7 +169,7 @@ void ServerImpl::OnRun() {
                 try{
                     std::thread(&ServerImpl::user_handler, this, client_socket).detach();
                 } catch (...) {
-                    { // lock only to insert
+                    { // lock only to erase
                         std::unique_lock<std::mutex> lck(client_set_mutex);
                         client_sockets.erase(client_socket);
                     }
