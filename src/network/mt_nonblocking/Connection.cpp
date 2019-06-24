@@ -28,9 +28,9 @@ void Connection::OnError() {
     _isAlive.store(false);
     _logger->error("Error connection on descriptor {}", _socket);
     std::string err_message = "something went wrong\r\n";
-    if (send(_socket, err_message.data(), err_message.size(), 0) <= 0) {
-        throw std::runtime_error("Failed to send response");
-    }
+//    if (send(_socket, err_message.data(), err_message.size(), 0) <= 0) {
+//        throw std::runtime_error("Failed to send response");
+//    }
 }
 
 // See Connection.h
@@ -38,10 +38,10 @@ void Connection::OnClose() {
     _logger->info("OnClose on descriptor {}", _socket);
     _isAlive.store(false);
     _logger->debug("Closed connection on descriptor {}", _socket);
-    std::string message = "Connection is closed\r\n";
-    if (send(_socket, message.data(), message.size(), 0) <= 0) {
-        throw std::runtime_error("Failed to send response");
-    }
+//    std::string message = "Connection is closed\r\n";
+//    if (send(_socket, message.data(), message.size(), 0) <= 0) {
+//        throw std::runtime_error("Failed to send response");
+//    }
 }
 
 // See Connection.h
@@ -93,11 +93,10 @@ void Connection::DoRead() {
                     result += "\n";
 
                     // Save response
-                    {
-                        std::lock_guard<std::mutex> lock(_mutex);
-                        _answers.push_back(result);
-                        _event.events = MASK_EPOLLREADWRITE;
-                    }
+
+                    _answers.push_back(result);
+                    _event.events = MASK_EPOLLREADWRITE;
+
 
                     // Prepare for the next command
                     command_to_execute.reset();
